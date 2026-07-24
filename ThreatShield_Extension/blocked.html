@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ThreatShield - Website Blocked</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:"Segoe UI",sans-serif;
+}
+
+body{
+background:#0f172a;
+display:flex;
+justify-content:center;
+align-items:center;
+min-height:100vh;
+color:#fff;
+padding:20px;
+}
+
+.card{
+width:750px;
+background:#1e293b;
+border-radius:20px;
+padding:40px;
+box-shadow:0 15px 40px rgba(0,0,0,.5);
+text-align:center;
+}
+
+.icon{
+font-size:70px;
+margin-bottom:10px;
+}
+
+h1{
+font-size:46px;
+margin-bottom:5px;
+}
+
+h2{
+color:#ef4444;
+margin-bottom:20px;
+}
+
+.desc{
+color:#cbd5e1;
+line-height:1.6;
+margin-bottom:30px;
+}
+
+.info{
+background:#0f172a;
+border-radius:15px;
+padding:25px;
+text-align:left;
+}
+
+.row{
+display:flex;
+justify-content:space-between;
+align-items:flex-start;
+margin:18px 0;
+border-bottom:1px solid rgba(255,255,255,.08);
+padding-bottom:10px;
+}
+
+.label{
+font-size:18px;
+font-weight:700;
+}
+
+.value{
+font-size:17px;
+font-weight:700;
+color:#38bdf8;
+max-width:55%;
+text-align:right;
+word-break:break-word;
+}
+
+.buttons{
+margin-top:35px;
+display:flex;
+justify-content:center;
+gap:20px;
+}
+
+button{
+padding:14px 30px;
+border:none;
+border-radius:10px;
+font-size:16px;
+cursor:pointer;
+transition:.25s;
+}
+
+.primary{
+background:#2563eb;
+color:white;
+}
+
+.primary:hover{
+background:#1d4ed8;
+}
+
+.secondary{
+background:#374151;
+color:white;
+}
+
+.secondary:hover{
+background:#4b5563;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<div class="icon">🛡️</div>
+
+<h1>ThreatShield</h1>
+
+<h2>Website Blocked</h2>
+
+<p class="desc">
+ThreatShield has detected this website as malicious and blocked it to protect your device and personal information.
+</p>
+
+<div class="info">
+
+<div class="row">
+<div class="label">Threat</div>
+<div class="value" id="reason">Loading...</div>
+</div>
+
+<div class="row">
+<div class="label">Blocked URL</div>
+<div class="value" id="url">Loading...</div>
+</div>
+
+<div class="row">
+<div class="label">Confidence</div>
+<div class="value" id="confidence">99%</div>
+</div>
+
+<div class="row">
+<div class="label">Severity</div>
+<div class="value" id="severity">HIGH</div>
+</div>
+
+<div class="row">
+<div class="label">Detection Time</div>
+<div class="value" id="time"></div>
+</div>
+
+</div>
+
+<div class="buttons">
+
+<button class="primary" id="googleBtn">
+Open Google
+</button>
+
+<button class="secondary" id="backBtn">
+Go Back
+</button>
+
+</div>
+
+</div>
+
+<script>
+
+const params = new URLSearchParams(window.location.search);
+
+// Accept multiple parameter names
+const threat =
+params.get("reason") ||
+params.get("attack") ||
+params.get("threat") ||
+"Unknown Threat";
+
+const blockedUrl =
+params.get("url") ||
+params.get("website") ||
+params.get("target") ||
+"Unknown URL";
+
+document.getElementById("reason").textContent =
+threat.replace(/_/g," ").toUpperCase();
+
+document.getElementById("url").textContent =
+decodeURIComponent(blockedUrl);
+
+document.getElementById("time").textContent =
+new Date().toLocaleString();
+
+// Severity
+
+const sev=document.getElementById("severity");
+
+if(threat.toLowerCase().includes("sql"))
+sev.textContent="CRITICAL";
+else if(
+threat.toLowerCase().includes("xss")||
+threat.toLowerCase().includes("path")||
+threat.toLowerCase().includes("phishing")
+)
+sev.textContent="HIGH";
+else
+sev.textContent="LOW";
+
+// Buttons
+
+document.getElementById("googleBtn").onclick=function(){
+location.href="https://www.google.com";
+};
+
+document.getElementById("backBtn").onclick=function(){
+
+if(history.length>1){
+history.back();
+}else{
+window.close();
+}
+
+};
+
+</script>
+
+</body>
+</html>

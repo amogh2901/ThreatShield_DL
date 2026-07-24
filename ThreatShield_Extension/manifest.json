@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "ThreatShield",
+  "version": "1.0",
+  "description": "ThreatShield Browser Protection",
+  "permissions": [
+    "tabs",
+    "notifications",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:5000/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ThreatShield"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "blocked.html",
+        "style.css"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

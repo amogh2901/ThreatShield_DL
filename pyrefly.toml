@@ -1,0 +1,26 @@
+# Pyrefly type-checker configuration for ThreatShield_DL
+# Uses workspace .venv (Python 3.10 with system site-packages)
+
+python-interpreter-path = ".venv/Scripts/python.exe"
+
+search-path = ["src"]
+
+ignore-missing-imports = [
+  "tensorflow",
+  "tensorflow.*",
+  "keras",
+  "keras.*",
+  "matplotlib",
+  "matplotlib.*",
+  "seaborn",
+  "seaborn.*",
+  "numpy",
+  "pandas",
+  "sklearn",
+  "sklearn.*",
+  "fastapi",
+  "fastapi.*",
+  "streamlit",
+  "streamlit.*"
+]
+
