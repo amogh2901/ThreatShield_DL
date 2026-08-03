@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 
-st.title("ThreatShield Security Operations Dashboard")
+st.title("DeepWAF-XAI Security Dashboard")
 
 conn = sqlite3.connect("database/logs.db")
 

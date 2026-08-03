@@ -5,18 +5,19 @@ sys.path.append(str(Path(__file__).resolve().parent))
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-from detector import detect_attack
+from src.detector import detect_attack
+from explainability.explanation_engine import ExplanationEngine
 from logger import log_attack
 from threat_intelligence import get_threat_info
 
 app = Flask(__name__)
 CORS(app)
-
+explainer = ExplanationEngine()
 
 @app.route("/")
 def home():
     return jsonify({
-        "status": "ThreatShield API Running"
+        "status": "DeepWAF-XAI API Running"
     })
 
 
@@ -55,6 +56,11 @@ def analyze():
             confidence = 1.0
 
         info = get_threat_info(attack)
+        explanation = explainer.explain(
+            payload=url,
+            prediction=attack,
+            confidence=confidence
+        )
 
         log_attack(
             request=url,
@@ -66,7 +72,9 @@ def analyze():
         return jsonify({
             "attack": attack,
             "severity": info["severity"],
-            "confidence": round(confidence * 100, 2)
+            "confidence": round(confidence * 100, 2),
+            "explanation": explanation["explanation"],
+            "recommended_action": explanation["recommended_action"]
         })
 
     except Exception as e:

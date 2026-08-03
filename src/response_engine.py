@@ -1,29 +1,63 @@
-def response_action(severity):
-    severity_upper = severity.upper()
+"""
+ThreatShield Adaptive Response Engine
+-------------------------------------
+Generates recommended security actions based on threat severity.
+This module does not block requests automatically.
+It only recommends appropriate security responses.
+"""
 
-    if severity_upper == "CRITICAL":
-        return {
+
+def response_action(severity):
+    severity = severity.upper()
+
+    responses = {
+
+        "CRITICAL": {
             "status": "BLOCKED",
-            "message": "Critical threat detected. Block the request, isolate the source, and generate a security alert."
-        }
-    elif severity_upper == "HIGH":
-        return {
+            "message": "Critical threat detected. Immediately block the request and isolate the source.",
+            "firewall": "Enabled",
+            "admin_alert": "Sent",
+            "log_status": "Recorded",
+            "recommended_action": "Block request, isolate source IP, investigate immediately."
+        },
+
+        "HIGH": {
             "status": "WARNING",
-            "message": "Potential attack detected. Apply rate limiting and investigate."
-        }
-    elif severity_upper == "MEDIUM":
-        return {
+            "message": "High-risk attack detected. Block the request and investigate.",
+            "firewall": "Enabled",
+            "admin_alert": "Sent",
+            "log_status": "Recorded",
+            "recommended_action": "Block request and review server logs."
+        },
+
+        "MEDIUM": {
             "status": "MONITOR",
-            "message": "Suspicious activity detected. Request is being monitored."
-        }
-    elif severity_upper == "LOW":
-        return {
+            "message": "Suspicious activity detected. Continue monitoring.",
+            "firewall": "Monitoring Only",
+            "admin_alert": "Not Required",
+            "log_status": "Recorded",
+            "recommended_action": "Monitor future requests from this source."
+        },
+
+        "LOW": {
             "status": "SAFE",
-            "message": "No immediate action required. Continue monitoring."
+            "message": "No immediate threat detected.",
+            "firewall": "No Action",
+            "admin_alert": "Not Required",
+            "log_status": "Recorded",
+            "recommended_action": "Allow request and continue normal monitoring."
         }
-    else:
-        # For unknown severity levels
-        return {
-            "status": "MONITOR",
-            "message": "Unknown threat level. Continue monitoring."
+
+    }
+
+    return responses.get(
+        severity,
+        {
+            "status": "UNKNOWN",
+            "message": "Unknown threat level detected.",
+            "firewall": "Monitoring Only",
+            "admin_alert": "Review Required",
+            "log_status": "Recorded",
+            "recommended_action": "Review the request manually."
         }
+    )

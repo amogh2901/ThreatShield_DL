@@ -1,7 +1,18 @@
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent))
 
+# Set project root path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Ensure database directory exists
+DB_DIR = PROJECT_ROOT / "database"
+DB_DIR.mkdir(parents=True, exist_ok=True)
+
+# Path to logs database
+DB_PATH = DB_DIR / "logs.db"
+
+# Append to sys path for module imports
+sys.path.append(str(PROJECT_ROOT))
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import sqlite3
@@ -12,251 +23,699 @@ import time
 import pickle
 from threat_intelligence import get_threat_info
 from response_engine import response_action
-from attack_simulator import generate_attack
 from threat_score import calculate_threat_score
 from honeypot import check_honeypot
 from detector import detect_attack
+from explainability.explanation_engine import ExplanationEngine
 from logger import log_attack
 from admin_config import ADMIN_PASSKEY
 
+# Load model info path
+MODEL_INFO_PATH = PROJECT_ROOT / "model" / "model_info.pkl"
+
+# Initialize explainability engine
+explainer = ExplanationEngine()
+
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
-    page_title="ThreatShield Security Platform",
+    page_title="DeepWAF-XAI Security Platform",
     page_icon="🛡",
     layout="wide"
 )
 
-# ---------------- UI STYLE ----------------
+# ---------------- CYBER SECURITY UI ----------------
 st.markdown("""
 <style>
-body {background-color:#0A0F1C;}
-h1 {color:#00E5FF;font-size:36px;}
-.stButton>button {
-background: linear-gradient(90deg,#00E5FF,#6366F1);
-color:white;
-border-radius:10px;
-height:45px;
-width:220px;
-font-weight:bold;}
-[data-testid="stMetric"] {
-background:#111827;
-padding:20px;
-border-radius:12px;
-border:1px solid #1F2937;}
+
+/* Main Background */
+.stApp{
+    background:#0B1220;
+    color:white;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"]{
+    background:#111827;
+    border-right:1px solid #1F2937;
+}
+
+/* Titles */
+h1{
+    color:#00E5FF;
+    font-size:40px;
+    font-weight:700;
+}
+
+h2,h3{
+    color:#60A5FA;
+}
+
+/* Buttons */
+.stButton>button{
+
+    background:linear-gradient(90deg,#00BFFF,#2563EB);
+    color:white;
+
+    border:none;
+
+    border-radius:12px;
+
+    font-weight:600;
+
+    transition:.35s;
+
+    animation:fadeInUp .6s ease;
+
+}
+
+.stButton>button:hover{
+
+    transform:translateY(-3px) scale(1.02);
+
+    box-shadow:0 0 18px rgba(0,191,255,.35);
+
+}
+
+/* Text Input */
+.stTextInput input{
+    background:#1A2332;
+    color:white;
+    border-radius:10px;
+    border:1px solid #334155;
+}
+
+/* Metrics */
+[data-testid="stMetric"]{
+
+    background:linear-gradient(180deg,#111827,#182234);
+
+    border:1px solid #26354d;
+
+    border-radius:18px;
+
+    padding:18px;
+
+    transition:.35s;
+
+    animation:fadeInUp .6s ease;
+
+}
+
+[data-testid="stMetric"]:hover{
+
+    transform:translateY(-6px);
+
+    border:1px solid #00BFFF;
+
+    box-shadow:0 0 18px rgba(0,191,255,.35);
+
+}
+
+[data-testid="stAlert"]{
+
+    animation:fadeInUp .5s ease;
+
+}
+
+[data-testid="stMetric"]:hover{
+    transform:translateY(-5px);
+    border:1px solid #00BFFF;
+    box-shadow:0 0 22px rgba(0,191,255,.25);
+}
+
+/* Expanders */
+.streamlit-expanderHeader{
+    background:#1A2332;
+    border-radius:8px;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"]{
+    border-radius:10px;
+}
+
+/* Progress Bar */
+.stProgress > div > div > div > div{
+
+    background:#00E676;
+
+    animation:pulse 1.8s infinite;
+
+}
+
+/* ================= Analyzer Card ================= */
+
+.analyzer-card{
+    background:#101827;
+    border:1px solid #24364F;
+    border-radius:18px;
+    padding:25px;
+    margin-top:15px;
+    margin-bottom:20px;
+    box-shadow:0 0 18px rgba(0,191,255,.08);
+}
+
+.analyzer-title{
+    font-size:28px;
+    font-weight:700;
+    color:white;
+    margin-bottom:8px;
+}
+.analyzer-card{
+    margin-top:20px;
+    margin-bottom:30px;
+}
+.analyzer-subtitle{
+    color:#AAB8D3;
+    font-size:15px;
+    margin-bottom:20px;
+}
+.metric-card{
+    background:linear-gradient(180deg,#131c2c,#1a2437);
+    border:1px solid #26354d;
+    border-radius:18px;
+    padding:18px;
+    transition:.3s;
+    min-height:120px;
+}
+
+.metric-card:hover{
+    border:1px solid #00BFFF;
+    box-shadow:0 0 20px rgba(0,191,255,.20);
+    transform:translateY(-5px);
+}
+
+.metric-title{
+    color:#A7B3C7;
+    font-size:15px;
+    margin-top:10px;
+}
+
+.metric-value{
+    color:white;
+    font-size:34px;
+    font-weight:700;
+}
+
+.metric-icon{
+    font-size:30px;
+}
+
+/* ==============================
+   Animations
+==============================*/
+
+@keyframes fadeInUp{
+    from{
+        opacity:0;
+        transform:translateY(25px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+@keyframes fadeIn{
+    from{
+        opacity:0;
+    }
+    to{
+        opacity:1;
+    }
+}
+
+@keyframes glow{
+    0%{
+        box-shadow:0 0 6px rgba(0,191,255,.15);
+    }
+
+    50%{
+        box-shadow:0 0 22px rgba(0,191,255,.45);
+    }
+
+    100%{
+        box-shadow:0 0 6px rgba(0,191,255,.15);
+    }
+}
+
+@keyframes pulse{
+
+    0%{
+        transform:scale(1);
+    }
+
+    50%{
+        transform:scale(1.04);
+    }
+
+    100%{
+        transform:scale(1);
+    }
+
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("🛡 ThreatShield")
-page = st.sidebar.selectbox(
-    "Navigation",
-    ["Attack Detection", "Security Dashboard"]
+# ---------------- Navigation ----------------
+st.sidebar.image(
+    "https://img.icons8.com/fluency/96/shield.png",
+    width=70
 )
 
-# ------------------ Helper Functions ------------------
+st.sidebar.title("DeepWAF-XAI")
 
-def load_attack_logs():
+st.sidebar.caption(
+    "Explainable Deep Learning Framework"
+)
+
+st.sidebar.markdown("---")
+
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "🛡 Attack Detection",
+        "📊 Security Dashboard"
+    ]
+)
+
+# ---------------- Helper functions ----------------
+
+def create_attack_logs_table():
+    """Create logs table if it doesn't exist."""
     try:
-        conn = sqlite3.connect("database/logs.db")
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS attack_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT,
+                    request TEXT,
+                    attack_type TEXT,
+                    confidence REAL,
+                    severity TEXT,
+                    threat_score REAL,
+                    prediction_time_ms REAL
+                )
+            """)
+    except Exception as e:
+        st.error(f"Database setup error: {e}")
+
+def load_model_info():
+    try:
+        with open(MODEL_INFO_PATH, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        return {
+            "embedding_dim": 128,
+            "num_classes": 5,
+            "sequence_length": 200
+        }
+
+def get_db_connection():
+    try:
+        return sqlite3.connect(DB_PATH)
+    except Exception as e:
+        st.error(f"Database connection error: {e}")
+        return None
+
+def load_attack_logs() -> pd.DataFrame:
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return pd.DataFrame()
         df = pd.read_sql_query("SELECT * FROM attack_logs", conn)
         conn.close()
-        # Convert timestamp to datetime
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        if not df.empty:
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
         return df
     except Exception as e:
-        st.error(f"Database Error: {e}")
+        st.error(f"Error loading logs: {e}")
         return pd.DataFrame()
 
-def get_filtered_logs(df, attack_type_filter, severity_filter, date_range, request_search):
-    filtered_df = df.copy()
+def get_live_stats():
+    df = load_attack_logs()
 
-    # Filter by attack_type
-    if attack_type_filter != "All":
-        filtered_df = filtered_df[filtered_df["attack_type"] == attack_type_filter]
-
-    # Filter by severity
-    if severity_filter != "All":
-        filtered_df = filtered_df[filtered_df["severity"] == severity_filter]
-
-    # Filter by date range if provided
-    if date_range is not None:
-        start_date, end_date = date_range
-        # Convert to pandas.Timestamp
-        start_date = pd.Timestamp(start_date)
-        end_date = pd.Timestamp(end_date) + pd.Timedelta(days=1)
-        filtered_df = filtered_df[
-            (filtered_df["timestamp"] >= start_date) &
-            (filtered_df["timestamp"] < end_date)
-        ]
-
-    # Filter by request text
-    if request_search:
-        filtered_df = filtered_df[filtered_df["request"].str.contains(request_search, case=False, na=False)]
-
-    return filtered_df
-
-# Load model info for dynamic parameters
-try:
-    with open("model/model_info.pkl", "rb") as f:
-        model_info = pickle.load(f)
-        embedding_dim = model_info.get("embedding_dim", 128)
-        num_classes = model_info.get("num_classes", 5)
-        sequence_length = model_info.get("sequence_length", 200)
-except:
-    embedding_dim = 128
-    num_classes = 5
-    sequence_length = 200
-
-# ------------------ Attack Detection Page (unchanged) ------------------
-if page == "Attack Detection":
-    st.title("ThreatShield DL - Web Attack Detection System")
-    st.write("Analyze HTTP requests using Deep Learning to detect cyber attacks.")
-
-    request = st.text_input("HTTP Request")
-
-    if st.button("Analyze Request"):
-        if request.strip() == "":
-            st.warning("Please enter a request.")
-            st.stop()
-
-        if check_honeypot(request):
-            st.error("🚨 Honeypot Triggered!")
-
-        # Measure inference time
-        start_time = time.perf_counter()
-        result, confidence, probabilities = detect_attack(request)
-        end_time = time.perf_counter()
-        prediction_time_ms = (end_time - start_time) * 1000
-
-        # Use confidence directly from model (no fake adjustment)
-        confidence = round(confidence, 4)
-
-        # Get threat info and calculate score
-        info = get_threat_info(result) or {
-            "severity": "MEDIUM",
-            "description": "Unknown threat pattern detected.",
-            "action": "Monitor request."
+    if df.empty:
+        return {
+            "total": 0,
+            "safe": 0,
+            "malicious": 0,
+            "critical": 0,
+            "avg_score": 0
         }
-        score = calculate_threat_score(info["severity"], confidence)
 
-        # Log attack after severity is finalized
-        log_attack(
-            request=request,
-            attack_type=result,
-            confidence=confidence,
-            severity=info["severity"],
-            threat_score=score,
-            prediction_time_ms=prediction_time_ms
+    normal = ["Normal", "LEGAL"]
+
+    total = len(df)
+    safe = len(df[df["attack_type"].isin(normal)])
+    malicious = len(df[~df["attack_type"].isin(normal)])
+    critical = len(df[df["severity"] == "CRITICAL"])
+
+    avg_score = (
+        df["threat_score"].mean()
+        if "threat_score" in df.columns
+        else 0
+    )
+
+    return {
+        "total": total,
+        "safe": safe,
+        "malicious": malicious,
+        "critical": critical,
+        "avg_score": avg_score
+    }
+
+def get_filtered_logs(df, attack_type, severity, date_range, request_search):
+    filtered = df.copy()
+    if attack_type != "All":
+        filtered = filtered[filtered["attack_type"] == attack_type]
+    if severity != "All":
+        filtered = filtered[filtered["severity"] == severity]
+    if date_range:
+        start_dt, end_dt = date_range
+        filtered = filtered[
+            (filtered["timestamp"] >= start_dt) &
+            (filtered["timestamp"] < end_dt + pd.Timedelta(days=1))
+        ]
+    if request_search:
+        filtered = filtered[filtered["request"].str.contains(request_search, case=False, na=False)]
+    return filtered
+
+# Create logs table once
+create_attack_logs_table()
+
+# ---------------- Attack Detection Page ----------------
+if page == "🛡 Attack Detection":
+    st.title("🛡 DeepWAF-XAI")
+
+    st.caption(
+        "An Explainable Deep Learning Framework for Real-Time Web Attack Detection and Intelligent Threat Mitigation"
+    )
+
+    st.markdown("""
+    <div style="
+    background:#133b2f;
+    border:1px solid #1ea96c;
+    padding:16px;
+    border-radius:12px;
+    font-size:18px;
+    animation:glow 2s infinite;
+    ">
+
+    🟢 <b>AI Engine Active</b> |
+    Character-Level Stacked BiLSTM Loaded
+
+    </div>
+
+    <br>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <div class="analyzer-card">
+
+    <div class="analyzer-title">
+    🎯 Analyze HTTP Request / URL / Payload
+    </div>
+
+    <div class="analyzer-subtitle">
+    Paste your HTTP request, URL or payload below for analysis.
+    </div>
+    """, unsafe_allow_html=True)
+# =========================
+# Request Input Section
+# =========================
+
+
+    left, right = st.columns([7,3], gap="large")
+
+# ================= LEFT (70%)
+    with left:
+
+        if "request_input" not in st.session_state:
+            st.session_state.request_input = ""
+
+        request_input = st.text_area(
+            "Paste HTTP Request / URL / Payload",
+            key="request_input",
+            height=250,
+            placeholder="Paste your HTTP request, URL or payload here..."
         )
 
-        # Update info based on result
-        if result.lower() in ["normal", "legal"]:
-            info["severity"] = "LOW"
-            info["description"] = "Normal web request."
-            info["action"] = "No action required."
+        st.caption(f"Characters : {len(request_input)} / 5000")
+
+        analyze = st.button(
+            "🔍 Analyze Request",
+            use_container_width=True
+        )
+
+
+# ================= RIGHT (30%)
+    with right:
+
+        with st.popover("❓ Help / Examples", use_container_width=True):
+
+            st.markdown("### Example Inputs")
+
+            st.code(
+                "<script>alert('XSS')</script>",
+                language="html"
+            )
+
+            st.code(
+                "SELECT * FROM users WHERE username='admin'--",
+                language="sql"
+            )
+
+            st.code(
+                "../../../etc/passwd",
+                language="text"
+            )
+
+            st.code(
+                "https://paypa1-login-security.com",
+                language="text"
+            )
+
+            st.info("""
+### 🔒 What happens next?
+
+• Attack Type Prediction
+
+• Confidence Score
+
+• Explainable AI
+
+• Threat Intelligence
+
+• Recommended Action
+""")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+    if analyze:
+        if not request_input.strip():
+            st.warning("Please enter a request.")
+        elif check_honeypot(request_input):
+            st.error("🚨 Honeypot Triggered!")
         else:
-            if info["severity"] == "CRITICAL":
-                st.error("🚨 CRITICAL SECURITY THREAT")
-            elif info["severity"] == "HIGH":
-                st.warning("⚠ Malicious Activity")
-            else:
-                st.warning("⚠ Suspicious Request Detected")
-        st.write("Severity:", info["severity"])
-        st.write("Description:", info["description"])
-        st.write("Recommended Action:", info["action"])
+            progress = st.progress(0)
+            status = st.empty()
 
-        # ---------------- Probability Chart ----------------
-        if probabilities:
-            # Convert probabilities to percentages
-            prob_df = pd.DataFrame(
-                probabilities.items(),
-                columns=["Attack Type", "Probability"]
+            steps = [
+                "🔍 Parsing HTTP Request...",
+                "🧠 Running Deep Learning Model...",
+                "📊 Calculating Confidence...",
+                "🛡 Mapping Threat Intelligence...",
+                "⚡ Generating Explainable AI..."
+            ]
+
+            for i, step in enumerate(steps):
+                status.info(step)
+                with st.spinner("Running DeepWAF-XAI..."):
+                    attack_type, confidence, probabilities = detect_attack(request_input)
+                progress.progress((i + 1) * 20)
+                time.sleep(0.35)
+
+            start_time = time.perf_counter()
+
+            attack_type, confidence, probabilities = detect_attack(request_input)
+
+            progress.progress(100)
+            status.success("✅ Analysis Completed")
+            time.sleep(0.5)
+
+            progress.empty()
+            status.empty()
+            explanation_result = explainer.explain(payload=request_input, prediction=attack_type, confidence=confidence)
+            end_time = time.perf_counter()
+            prediction_time_ms = (end_time - start_time) * 1000
+
+            model_info = load_model_info()
+
+            embedding_dim = model_info.get("embedding_dim", 128)
+            sequence_length = model_info.get(
+                "sequence_length",
+                model_info.get("max_sequence_length", 200)
             )
-            prob_df["Probability"] *= 100  # percentage
+            classes = model_info.get("classes", [])
+            num_classes = len(classes) if classes else 5
 
-            fig = px.bar(
-                prob_df,
-                x="Attack Type",
-                y="Probability",
-                color="Attack Type",
-                text_auto=".2f",
-                title="Attack Prediction Probabilities"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ---------------- Threat Intelligence ----------------
-        info = get_threat_info(result)
-        if info is None:
-            info = {
+            info = get_threat_info(attack_type) or {
                 "severity": "MEDIUM",
                 "description": "Unknown threat pattern detected.",
-                "action": "Monitor request."
+                "action": "Monitor request.",
+                "mitre": "",
+                "cvss": "",
+                "recommendation": ""
             }
 
-        # ---------------- Deep Learning-Based Explanation ----------------
-        if result.lower() in ["normal", "legal"]:
-            explanation = "The Deep Learning model detected no malicious activity."
-        elif result == "SQL Injection":
-            explanation = "The Bi-Directional LSTM model detected SQL query manipulation patterns."
-        elif result == "Cross Site Scripting":
-            explanation = "The Bi-Directional LSTM model detected malicious JavaScript execution patterns."
-        elif result == "Path Traversal":
-            explanation = "The Bi-Directional LSTM model detected directory traversal attempts."
-        elif result == "Phishing URL":
-            explanation = "The Bi-Directional LSTM model detected characteristics of phishing URLs."
-        else:
-            explanation = "The request appears to be normal."
+            # Calculate threat score once
+            threat_score = calculate_threat_score(info["severity"], confidence)
 
-        st.markdown("## 🧠 AI Attack Explanation")
-        st.info(explanation)
+            # Log attack
+            log_attack(
+                request=request_input,
+                attack_type=attack_type,
+                confidence=confidence,
+                severity=info["severity"],
+                threat_score=threat_score,
+                prediction_time_ms=prediction_time_ms
+            )
 
-        # ---------------- SAFE / ATTACK DISPLAY ----------------
-        if result.lower() in ["normal", "legal"]:
-            st.success("✅ Safe Request")
-            info["severity"] = "LOW"
-            info["description"] = "Normal web request."
-            info["action"] = "No action required."
-        else:
-            if info["severity"] == "CRITICAL":
-                st.error("🚨 CRITICAL SECURITY THREAT")
-            elif info["severity"] == "HIGH":
-                st.warning("⚠ Malicious Activity")
+            # Show detection result
+            if attack_type.lower() in ["normal", "legal"]:
+                info["severity"] = "LOW"
+                info["description"] = "Normal web request."
+                info["action"] = "No action required."
+                placeholder = st.empty()
+
+                text = "✅ Safe Request"
+
+                output = ""
+
+                for c in text:
+                    output += c
+                    placeholder.success(output)
+                    time.sleep(0.03)
             else:
-                st.warning("⚠ Suspicious Request Detected")
-        st.write("Severity:", info["severity"])
-        st.write("Description:", info["description"])
-        st.write("Recommended Action:", info["action"])
+                if info["severity"] == "CRITICAL":
+                    st.error("🚨 CRITICAL SECURITY THREAT")
+                elif info["severity"] == "HIGH":
+                    st.warning("⚠ Malicious Activity")
+                else:
+                    st.warning("⚠ Suspicious Request Detected")
 
-        # ---------------- Threat Score ----------------
-        score = calculate_threat_score(info["severity"], confidence)
-        score_percent = int(score * 100)
-        st.subheader("Threat Score")
-        st.progress(score)
-        st.metric(
-            "Risk Percentage",
-            f"{score_percent}%"
-        )
+            # Threat Intelligence
+            st.subheader("🛡 Threat Intelligence")
+            st.write("**Severity:**", info.get("severity", "N/A"))
+            st.write("**Description:**", info.get("description", "N/A"))
+            st.write("**Recommended Action:**", info.get("action", "N/A"))
+            st.write("**MITRE ATT&CK:**", info.get("mitre", "N/A"))
+            st.write("**CVSS Score:**", info.get("cvss", "N/A"))
+            st.write("**Security Recommendation:**", info.get("recommendation", "N/A"))
 
-        # ---------------- Adaptive Response ----------------
-        response = response_action(info["severity"])
-        st.subheader("Adaptive Security Response")
-        st.write("Status:", response["status"])
-        st.write("Message:", response["message"])
+            # Probability chart
+            if probabilities:
+                df_probs = pd.DataFrame(
+                    probabilities.items(),
+                    columns=["Attack Type", "Probability"]
+                )
+                df_probs["Probability"] *= 100
+                df_probs = df_probs.sort_values("Probability", ascending=False)
+                fig = px.bar(
+                    df_probs,
+                    x="Attack Type",
+                    y="Probability",
+                    color="Attack Type",
+                    text_auto=".2f",
+                    title="Attack Prediction Probabilities"
+                )
+                with st.spinner("Generating attack probability..."):
+                    time.sleep(0.4)
+                st.plotly_chart(fig)
 
-        # ---------------- Model Details ----------------
-        st.markdown(f"""
-        ### 📚 Model Details
-        - **Model:** Bi-Directional LSTM
-        - **Embedding:** {embedding_dim} Dimensions
-        - **Sequence Length:** {sequence_length}
-        - **Framework:** TensorFlow 2.x
-        - **Classes:** {num_classes}
-        - **Prediction:** Softmax
-        """)
+            # Explainability
+            st.markdown("## 🧠 Explainable AI")
+            with st.expander("View AI Decision Explanation", expanded=True):
+                st.success(f"Prediction : {explanation_result['prediction']}")
+                st.metric("Model Confidence", f"{explanation_result['confidence']:.2f}%")
+                st.write("### Decision Reasons")
+                for reason in explanation_result["explanation"]:
+                    st.markdown(f"✔ {reason}")
+                st.write("### Recommended Action")
+                st.warning(explanation_result["recommended_action"])
 
-# ------------------ Security Dashboard ------------------
-if page == "Security Dashboard":
-    st.title("ThreatShield Security Operations Center")
+            # Threat Score
+            st.subheader("Threat Score")
+            bar = st.progress(0)
+
+            for i in range(int(threat_score * 100) + 1):
+                bar.progress(i)
+                time.sleep(0.004)
+
+            if threat_score >= 0.90:
+                st.error("🚨 CRITICAL RISK")
+
+            elif threat_score >= 0.70:
+                st.warning("⚠ HIGH RISK")
+
+            elif threat_score >= 0.40:
+                st.info("🟠 MEDIUM RISK")
+
+            else:
+                st.success("🟢 LOW RISK")
+
+
+            # Adaptive Response
+            response = response_action(info["severity"])
+            # Safeguard keys with get()
+            st.subheader("🛡 Adaptive Security Response")
+            st.write("**Status:**", response.get("status", "N/A"))
+            st.write("**Message:**", response.get("message", "N/A"))
+            st.write("Firewall:", response.get("firewall", "N/A"))
+            st.write("Admin Alert:", response.get("admin_alert", "N/A"))
+            st.write("Log Status:", response.get("log_status", "N/A"))
+            st.write("Recommended Action:", response.get("recommended_action", "N/A"))
+
+            # Model details (already loaded above)
+            st.markdown(f"""
+            ### 📚 Model Details
+            - **Model:** Bi-Directional LSTM
+            - **Embedding:** {embedding_dim} Dimensions
+            - **Sequence Length:** {sequence_length}
+            - **Framework:** TensorFlow 2.x
+            - **Classes:** {num_classes}
+            - **Prediction:** Softmax
+            """)
+        
+    stats = get_live_stats()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    cards = [
+        ("📨","Total Requests",stats["total"]),
+        ("✅","Safe Requests",stats["safe"]),
+        ("🚨","Malicious",stats["malicious"]),
+        ("☠","Critical",stats["critical"]),
+        ("🎯","Avg Score",f"{stats['avg_score']:.2f}")
+    ]
+
+    cols = st.columns(5)
+
+    for col,(icon,title,value) in zip(cols,cards):
+        with col:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-icon">{icon}</div>
+                <div class="metric-title">{title}</div>
+                <div class="metric-value">{value}</div>
+            </div>
+            """,unsafe_allow_html=True)
+        
+    st.markdown("---")               
+
+# ---------------- Security Dashboard ----------------
+elif page == "📊 Security Dashboard":
+    st.title("DeepWAF-XAI Security Operations Center")
     st.markdown("### 🔐 Admin Access")
     passkey = st.text_input("Enter Admin Passkey", type="password")
     if passkey != ADMIN_PASSKEY:
@@ -266,192 +725,159 @@ if page == "Security Dashboard":
     st_autorefresh(interval=5000, key="refresh")
 
     # Load logs
-    df = load_attack_logs()
+    df_logs = load_attack_logs()
 
-    # ------------------ Filters ------------------
-    st.sidebar.header("Filters")
+    # Filters setup
     attack_type_options = ["All"]
     severity_options = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"]
-    date_min = None
-    date_max = None
-
-    if not df.empty:
+    if not df_logs.empty:
         try:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            date_min = df['timestamp'].min().date()
-            date_max = df['timestamp'].max().date()
+            df_logs["timestamp"] = pd.to_datetime(df_logs["timestamp"], errors="coerce")
+            date_min = df_logs['timestamp'].min().date()
+            date_max = df_logs['timestamp'].max().date()
         except Exception as e:
             st.error(f"Error processing timestamps: {e}")
+            date_min, date_max = None, None
+        try:
+            attack_type_options += sorted(df_logs["attack_type"].dropna().unique().tolist())
+        except:
+            pass
     else:
-        date_min = None
-        date_max = None
+        date_min, date_max = None, None
 
-    # Add date range input widget
-    if date_min is not None and date_max is not None:
-        selected_dates = st.sidebar.date_input(
-            "Select Date Range",
-            value=[date_min, date_max],
-            min_value=date_min,
-            max_value=date_max
-        )
-        if isinstance(selected_dates, (tuple, list)) and len(selected_dates) == 2:
-            start_date, end_date = selected_dates[0], selected_dates[1]
-            date_range = (pd.to_datetime(start_date), pd.to_datetime(end_date))
-        elif isinstance(selected_dates, (tuple, list)) and len(selected_dates) == 1:
-            start_date = selected_dates[0]
-            date_range = (pd.to_datetime(start_date), pd.to_datetime(start_date))
+    # Date range selector
+    if date_min and date_max:
+        selected_dates = st.sidebar.date_input("Select Date Range", [date_min, date_max])
+        if len(selected_dates) == 2:
+            start_date, end_date = selected_dates
+            date_range = (pd.to_datetime(str(start_date)), pd.to_datetime(str(end_date)))
         else:
             date_range = None
     else:
         date_range = None
 
-    attack_type_filter = st.sidebar.selectbox(
-        "Attack Type",
-        options=attack_type_options + (sorted(df["attack_type"].unique().tolist()) if not df.empty else [])
-    )
-    severity_filter = st.sidebar.selectbox(
-        "Severity",
-        options=severity_options
-    )
+    attack_type_filter = st.sidebar.selectbox("Attack Type", attack_type_options)
+    severity_filter = st.sidebar.selectbox("Severity", severity_options)
     request_search = st.sidebar.text_input("Search Request")
 
-    # Filter logs with date_range
-    filtered_df = get_filtered_logs(df, attack_type_filter, severity_filter, date_range, request_search)
+    # Move get_filtered_logs outside for clarity
+    # Already done above
 
-    # ------------------ Metrics ------------------
-    total_requests = len(df)
+    filtered_df = get_filtered_logs(df_logs, attack_type_filter, severity_filter, date_range, request_search)
+
+    # Metrics
+    total_requests = len(df_logs)
     normal_labels = ["Normal", "LEGAL"]
-    malicious_requests = len(df[~df["attack_type"].isin(normal_labels)]) if not df.empty else 0
-    safe_requests = len(df[df["attack_type"].isin(normal_labels)]) if not df.empty else 0
+    malicious_requests = len(df_logs[~df_logs["attack_type"].isin(normal_labels)]) if not df_logs.empty else 0
+    safe_requests = len(df_logs[df_logs["attack_type"].isin(normal_labels)]) if not df_logs.empty else 0
 
-    # Calculate metrics safely
-    confidence_avg = df["confidence"].mean() * 100 if "confidence" in df.columns and not df["confidence"].empty else 0
-    threat_score_avg = df["threat_score"].mean() if "threat_score" in df.columns and not df["threat_score"].empty else 0
-    prediction_time_avg = df["prediction_time_ms"].mean() if "prediction_time_ms" in df.columns and not df["prediction_time_ms"].empty else 0
-    critical_count = len(df[df["severity"] == "CRITICAL"]) if "severity" in df.columns else 0
-    high_count = len(df[df["severity"] == "HIGH"]) if "severity" in df.columns else 0
-    medium_count = len(df[df["severity"] == "MEDIUM"]) if "severity" in df.columns else 0
-    low_count = len(df[df["severity"] == "LOW"]) if "severity" in df.columns else 0
+    def safe_mean(series):
+        return series.mean() if not series.empty and pd.notnull(series).any() else 0
 
-    # Display metrics in cleaner layout
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    confidence_avg = safe_mean(df_logs["confidence"]) * 100 if "confidence" in df_logs.columns else 0
+    threat_score_avg = safe_mean(df_logs["threat_score"]) if "threat_score" in df_logs.columns else 0
+    prediction_time_avg = safe_mean(df_logs["prediction_time_ms"]) if "prediction_time_ms" in df_logs.columns else 0
+    critical_count = len(df_logs[df_logs["severity"] == "CRITICAL"]) if "severity" in df_logs.columns else 0
+    high_count = len(df_logs[df_logs["severity"] == "HIGH"]) if "severity" in df_logs.columns else 0
+    medium_count = len(df_logs[df_logs["severity"] == "MEDIUM"]) if "severity" in df_logs.columns else 0
+    low_count = len(df_logs[df_logs["severity"] == "LOW"]) if "severity" in df_logs.columns else 0
+
+    # Show metrics
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Requests", total_requests)
     col2.metric("Safe Requests", safe_requests)
     col3.metric("Malicious Requests", malicious_requests)
     col4.metric("Critical", critical_count)
-
-    col5, col6, col7, col8 = st.columns([1, 1, 1, 1])
+    col5, col6, col7, col8 = st.columns(4)
     col5.metric("Confidence", f"{confidence_avg:.2f}%")
     col6.metric("Threat Score", f"{threat_score_avg:.2f}")
     col7.metric("Prediction Time", f"{prediction_time_avg:.2f} ms")
     col8.metric("High Severity", high_count)
-
-    col9, col10 = st.columns([1, 1])
+    col9, col10 = st.columns(2)
     col9.metric("Medium", medium_count)
     col10.metric("Low", low_count)
 
-    # ------------------ Charts ------------------
-    # Attack Type Pie Chart
-    attack_counts = pd.Series()
-    if not df.empty and "attack_type" in df.columns:
-        attack_counts = df["attack_type"].value_counts()
-    if not attack_counts.empty:
-        fig_attack_type = px.pie(
-            attack_counts,
-            values=attack_counts.values,
-            labels=attack_counts.index,
-            title="Attack Type Distribution"
-        )
-        st.plotly_chart(fig_attack_type, use_container_width=True)
-    else:
-        st.info("No attack data available.")
-
-    # Severity Pie Chart
-    severity_counts = pd.Series()
-    if not df.empty and "severity" in df.columns:
-        severity_counts = df["severity"].value_counts()
-    if not severity_counts.empty:
-        fig_severity = px.pie(
-            severity_counts,
-            values=severity_counts.values,
-            labels=severity_counts.index,
-            title="Severity Distribution"
-        )
-        st.plotly_chart(fig_severity, use_container_width=True)
-    else:
-        st.info("No severity data available.")
-
-    # Attacks over time line chart
-    if not df.empty:
+    # Attack Type Distribution Pie
+    if not df_logs.empty and "attack_type" in df_logs.columns:
         try:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-            df = df.dropna(subset=["timestamp"])
-            df['date'] = pd.DatetimeIndex(df['timestamp']).date
-            attacks_over_time = df.groupby('date').size().reset_index(name='counts')
-            fig_time = px.line(
-                attacks_over_time,
-                x='date',
-                y='counts',
-                title='Number of Attacks Over Time'
+            attack_counts = df_logs["attack_type"].value_counts()
+            fig_attack = px.pie(
+                attack_counts,
+                values=attack_counts.values,
+                labels=attack_counts.index,
+                title="Attack Type Distribution"
             )
-            st.plotly_chart(fig_time, use_container_width=True)
-        except:
-            pass
+            st.plotly_chart(fig_attack)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
 
-    # Confidence histogram
-    if not df.empty and "confidence" in df.columns:
-        fig_confidence = px.histogram(
-            df,
-            x='confidence',
-            nbins=20,
-            title='Confidence Scores Distribution'
-        )
-        st.plotly_chart(fig_confidence, use_container_width=True)
+    # Severity Distribution Pie
+    if not df_logs.empty and "severity" in df_logs.columns:
+        try:
+            severity_counts = df_logs["severity"].value_counts()
+            fig_severity = px.pie(
+                severity_counts,
+                values=severity_counts.values,
+                labels=severity_counts.index,
+                title="Severity Distribution"
+            )
+            st.plotly_chart(fig_severity)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
 
-    # Prediction time histogram
-    if not df.empty and "prediction_time_ms" in df.columns:
-        fig_pred_time = px.histogram(
-            df,
-            x='prediction_time_ms',
-            nbins=20,
-            title='Prediction Time Distribution (ms)'
-        )
-        st.plotly_chart(fig_pred_time, use_container_width=True)
+    # Attacks over time
+    if not df_logs.empty:
+        try:
+            df_logs["timestamp"] = pd.to_datetime(df_logs["timestamp"], errors="coerce")
+            df_logs = df_logs.dropna(subset=["timestamp"])
+            df_logs['date'] = pd.DatetimeIndex(df_logs['timestamp']).date
+            time_series = df_logs.groupby('date').size().reset_index(name='counts')
+            fig_time = px.line(time_series, x='date', y='counts', title='Attacks Over Time')
+            st.plotly_chart(fig_time)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
 
-    # Threat score by attack type bar chart
-    if not df.empty and "attack_type" in df.columns and "threat_score" in df.columns:
-        threat_score_by_type = df.groupby('attack_type')['threat_score'].mean().reset_index()
-        fig_threat = px.bar(
-            threat_score_by_type,
-            x='attack_type',
-            y='threat_score',
-            title='Average Threat Score by Attack Type'
-        )
-        st.plotly_chart(fig_threat, use_container_width=True)
+    # Histograms
+    if "confidence" in df_logs.columns:
+        try:
+            fig_confidence = px.histogram(df_logs, x='confidence', nbins=20, title='Confidence Scores Distribution')
+            st.plotly_chart(fig_confidence)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
+    if "prediction_time_ms" in df_logs.columns:
+        try:
+            fig_pred_time = px.histogram(df_logs, x='prediction_time_ms', nbins=20, title='Prediction Time Distribution (ms)')
+            st.plotly_chart(fig_pred_time)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
 
-    # ---------------- Attack Logs Table ----------------
-    st.markdown("### Attack Logs")
+    # Threat Score by Attack Type
+    if "attack_type" in df_logs.columns and "threat_score" in df_logs.columns:
+        try:
+            threat_by_type = df_logs.groupby('attack_type')['threat_score'].mean().reset_index()
+            fig_threat = px.bar(
+                threat_by_type,
+                x='attack_type',
+                y='threat_score',
+                title='Average Threat Score by Attack Type'
+            )
+            st.plotly_chart(fig_threat)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
+
+    # Attack Logs Table
     display_cols = ['timestamp', 'request', 'attack_type', 'confidence', 'severity', 'threat_score', 'prediction_time_ms']
-    # Ensure columns exist
     for col in display_cols:
         if col not in filtered_df.columns:
             filtered_df[col] = ''
-    st.dataframe(
-        filtered_df[display_cols].sort_values(by='timestamp', ascending=False),
-        use_container_width=True
-    )
+    st.markdown("### Attack Logs")
+    st.dataframe(filtered_df[display_cols].sort_values(by='timestamp', ascending=False))
 
-    # ---------------- Export Logs ----------------
-    csv = filtered_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Download Attack Logs as CSV",
-        data=csv,
-        file_name="attack_logs.csv",
-        mime="text/csv"
-    )
+    # CSV export
+    csv_data = filtered_df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Attack Logs as CSV", data=csv_data, file_name="attack_logs.csv", mime="text/csv")
 
-    # ---------------- Global Attack Map ----------------
-    st.markdown("### 🌍 Global Attack Map")
+    # Attack Map (simulated)
     countries = [
         ("USA", 37.0902, -95.7129),
         ("Russia", 61.5240, 105.3188),
@@ -462,29 +888,30 @@ if page == "Security Dashboard":
         ("UK", 55.3781, -3.4360),
         ("Canada", 56.1304, -106.3468)
     ]
-    attack_map = []
-    for index, row in filtered_df.iterrows():
+    attack_map_data = []
+    for _, row in filtered_df.iterrows():
         if row["attack_type"] not in ["Normal", "LEGAL"]:
             country = random.choice(countries)
-            attack_map.append({
+            attack_map_data.append({
                 "country": country[0],
                 "lat": country[1],
                 "lon": country[2],
                 "attack": row["attack_type"]
             })
-    if attack_map:
-        map_df = pd.DataFrame(attack_map)
-        fig = px.scatter_geo(
-            map_df,
-            lat="lat",
-            lon="lon",
-            color="attack",
-            hover_name="country",
-            projection="natural earth"
-        )
-        fig.update_traces(marker=dict(size=14, opacity=0.9))
-        st.plotly_chart(fig, use_container_width=True)
+    if attack_map_data:
+        df_map = pd.DataFrame(attack_map_data)
+        try:
+            fig_map = px.scatter_geo(
+                df_map,
+                lat="lat",
+                lon="lon",
+                color="attack",
+                hover_name="country",
+                projection="natural earth"
+            )
+            fig_map.update_traces(marker=dict(size=14, opacity=0.9))
+            st.plotly_chart(fig_map)
+        except Exception as e:
+            st.error(f"Map Chart Error: {e}")
     else:
         st.info("No malicious attacks recorded yet.")
-
-        st.info("No malicious attacks recorded yet.")

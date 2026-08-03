@@ -1,1 +1,1 @@
-# Threatshield
+# DeepWAF-XAI is an Explainable Deep Learning Framework designed for real-time web attack detection and intelligent threat mitigation. The framework combines a Character-Level Stacked Bidirectional Long Short-Term Memory (BiLSTM) model, Explainable Artificial Intelligence (XAI), Threat Intelligence, and an adaptive Web Application Firewall (WAF) to detect, explain, and respond to web-based cyber threats.

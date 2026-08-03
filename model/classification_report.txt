@@ -1,0 +1,11 @@
+              precision    recall  f1-score   support
+
+       LEGAL       1.00      0.99      1.00     19564
+    PHISHING       0.99      1.00      1.00       500
+       SHELL       0.52      0.94      0.67        32
+         SQL       0.60      0.95      0.74       165
+         XSS       0.97      0.98      0.98       789
+
+    accuracy                           0.99     21050
+   macro avg       0.82      0.97      0.87     21050
+weighted avg       0.99      0.99      0.99     21050

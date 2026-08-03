@@ -137,12 +137,24 @@ def detect_attack(payload):
 
     # User-friendly attack names
     DISPLAY_NAMES = {
-        "LEGAL": "Normal",
-        "SQL": "SQL Injection",
-        "XSS": "Cross Site Scripting",
-        "SHELL": "Path Traversal",
-        "PHISHING": "Phishing URL"
-    }
+    "LEGAL": "Normal",
+    "legal": "Normal",
+
+    "SQL": "SQL Injection",
+    "sql": "SQL Injection",
+    "sql_injection": "SQL Injection",
+
+    "XSS": "Cross Site Scripting",
+    "xss": "Cross Site Scripting",
+
+    "SHELL": "Path Traversal",
+    "shell": "Path Traversal",
+
+    "PHISHING": "Phishing URL",
+    "phishing": "Phishing URL",
+    "phishing_link": "Phishing URL"
+}
+
 
     # Convert payload to string
     if not isinstance(payload, str):
@@ -170,7 +182,7 @@ def detect_attack(payload):
 
     # Model inference
     try:
-        preds = model(padded_seq, training=False).numpy()
+        preds = model.predict(padded_seq, verbose=0)
     except Exception as e:
         print(f"Inference error: {e}")
         safe_classes = classes if classes else ["LEGAL", "SQL", "XSS", "SHELL", "PHISHING"]
@@ -184,6 +196,9 @@ def detect_attack(payload):
 
     # Extract probabilities
     probs = np.squeeze(preds)
+    print("\nModel Output")
+    for i, p in enumerate(probs):
+        print(i, p)
 
     if not np.isfinite(probs).all():
         raise RuntimeError("Model produced invalid probability values.")
@@ -193,22 +208,41 @@ def detect_attack(payload):
         safe_classes = classes if classes else ["LEGAL", "SQL", "XSS", "SHELL", "PHISHING"]
         return ("Normal", 1.0, {cls: 0.0 for cls in safe_classes})
 
-    # Determine max probability class
+    # Determine predicted class
     max_idx = np.argmax(probs)
     attack_class = str(classes[max_idx])
-    confidence = float(probs[max_idx])
+    confidence = round(float(probs[max_idx]), 4)
 
-    # Map to user-friendly name
-    attack_type = DISPLAY_NAMES.get(attack_class, attack_class)
+    if confidence < 0.60:
+        attack_type = "Normal"
+    else:
+        attack_type = DISPLAY_NAMES.get(attack_class, attack_class)
 
-    # Build probabilities dictionary
-    class_probs = {cls: float(probs[i]) for i, cls in enumerate(classes)}
+    # Build probability dictionary
+    class_probs = {}
 
-    return attack_type, confidence, class_probs
+    for i, cls in enumerate(classes):
+        readable = DISPLAY_NAMES.get(str(cls), str(cls))
+        class_probs[readable] = round(float(probs[i]), 4)
+
+    print("\n===== MODEL DEBUG =====")
+    print(f"Prediction : {attack_type}")
+    print(f"Confidence : {confidence:.4f}")
+
+    for i, cls in enumerate(classes):
+        print(f"{cls:15} : {probs[i]:.4f}")
+
+    print("=======================\n")
+
+    return (
+        attack_type,
+        confidence,
+        dict(sorted(class_probs.items(), key=lambda x: x[1], reverse=True))
+    )
 
 # Run standalone test
-if __name__ == "__main__":
-    test_payloads = [
+    if __name__ == "__main__":
+        test_payloads = [
         "SELECT * FROM users WHERE username='admin' --",
         "<script>alert(1)</script>",
         "../../etc/passwd",
